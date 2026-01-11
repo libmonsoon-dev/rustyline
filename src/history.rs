@@ -462,10 +462,6 @@ struct PathInfo(std::path::PathBuf, SystemTime, usize);
 
 #[cfg(feature = "with-file-history")]
 impl FileHistory {
-    // New multiline-aware history files start with `#V2\n` and have newlines
-    // and backslashes escaped in them.
-    const FILE_VERSION_V2: &'static str = "#V2";
-
     /// Default constructor
     #[must_use]
     pub fn new() -> Self {
@@ -493,7 +489,6 @@ impl FileHistory {
         let first_new_entry = if append {
             self.mem.len().saturating_sub(self.new_entries)
         } else {
-            wtr.write_all(Self::FILE_VERSION_V2.as_bytes())?;
             wtr.write_all(b"\n")?;
             0
         };
@@ -527,56 +522,45 @@ impl FileHistory {
 
         let rdr = BufReader::new(file);
         let mut lines = rdr.lines();
-        let mut v2 = false;
-        if let Some(first) = lines.next() {
-            let line = first?;
-            if line == Self::FILE_VERSION_V2 {
-                v2 = true;
-            } else {
-                self.add_owned(line)?;
-            }
-        }
-        let mut appendable = v2;
+        let mut appendable = true;
         for line in lines {
             let mut line = line?;
             if line.is_empty() {
                 continue;
             }
-            if v2 {
-                let mut copy = None; // lazily copy line if unescaping is needed
-                let mut str = line.as_str();
-                while let Some(i) = str.find('\\') {
-                    if copy.is_none() {
-                        copy = Some(String::with_capacity(line.len()));
-                    }
-                    let s = copy.as_mut().unwrap();
-                    s.push_str(&str[..i]);
-                    let j = i + 1; // escaped char idx
-                    let b = if j < str.len() {
-                        str.as_bytes()[j]
-                    } else {
-                        0 // unexpected if History::save works properly
-                    };
-                    match b {
-                        b'n' => {
-                            s.push('\n'); // unescaped line feed
-                        }
-                        b'\\' => {
-                            s.push('\\'); // unescaped back slash
-                        }
-                        _ => {
-                            // only line feed and back slash should have been escaped
-                            warn!(target: "rustyline", "bad escaped line: {line}");
-                            copy = None;
-                            break;
-                        }
-                    }
-                    str = &str[j + 1..];
+            let mut copy = None; // lazily copy line if unescaping is needed
+            let mut str = line.as_str();
+            while let Some(i) = str.find('\\') {
+                if copy.is_none() {
+                    copy = Some(String::with_capacity(line.len()));
                 }
-                if let Some(mut s) = copy {
-                    s.push_str(str); // remaining bytes with no escaped char
-                    line = s;
+                let s = copy.as_mut().unwrap();
+                s.push_str(&str[..i]);
+                let j = i + 1; // escaped char idx
+                let b = if j < str.len() {
+                    str.as_bytes()[j]
+                } else {
+                    0 // unexpected if History::save works properly
+                };
+                match b {
+                    b'n' => {
+                        s.push('\n'); // unescaped line feed
+                    }
+                    b'\\' => {
+                        s.push('\\'); // unescaped back slash
+                    }
+                    _ => {
+                        // only line feed and back slash should have been escaped
+                        warn!(target: "rustyline", "bad escaped line: {line}");
+                        copy = None;
+                        break;
+                    }
                 }
+                str = &str[j + 1..];
+            }
+            if let Some(mut s) = copy {
+                s.push_str(str); // remaining bytes with no escaped char
+                line = s;
             }
             appendable &= self.add_owned(line)?; // TODO truncate to MAX_LINE
         }
