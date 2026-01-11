@@ -25,7 +25,7 @@ impl<T: AsRef<str>> Candidate for T {
 }
 
 /// Completion candidate pair
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone)]
 pub struct Pair {
     /// Text to display when listing alternatives.
     pub display: String,
