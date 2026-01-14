@@ -4,6 +4,7 @@ Cargo.lock
 
 # vim swap file
 *.swp
+.idea
 
 # default history file
 history.txt

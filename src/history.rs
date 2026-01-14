@@ -489,7 +489,6 @@ impl FileHistory {
         let first_new_entry = if append {
             self.mem.len().saturating_sub(self.new_entries)
         } else {
-            wtr.write_all(b"\n")?;
             0
         };
         for entry in self.mem.entries.iter().skip(first_new_entry) {
